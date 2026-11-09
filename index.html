@@ -1,0 +1,358 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style><script src="config.js"></script></head><body><title>¿Paso el ramo?</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Calcula qué nota necesitas en tus evaluaciones pendientes para aprobar el ramo. Escala de 10 a 70.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: una columna tipo "libreta de notas"; tarjeta del ramo, resultado, estrellas y panel del dueño */
+:root{
+  --bg:#eef2f7; --surface:#ffffff; --line:#d6dde8; --fg:#16202e; --muted:#5b6778;
+  --ink:#1f4fd1; --ink-soft:#e3eafc;
+  --rojo:#c8312b; --rojo-soft:#fbe6e4;
+  --star:#f2b100; --star-off:#d6dde8;
+  --shadow:0 1px 2px rgba(22,32,46,.06),0 8px 24px rgba(22,32,46,.06);
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Figtree",ui-sans-serif,system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141c; --surface:#171e29; --line:#2a3443; --fg:#e8edf4; --muted:#9aa6b7;
+  --ink:#7ea2ff; --ink-soft:#1c2a4d; --rojo:#ff7a70; --rojo-soft:#3a1d1c; --star:#ffc531; --star-off:#334055;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --surface:#171e29; --line:#2a3443; --fg:#e8edf4; --muted:#9aa6b7;
+  --ink:#7ea2ff; --ink-soft:#1c2a4d; --rojo:#ff7a70; --rojo-soft:#3a1d1c; --star:#ffc531; --star-off:#334055;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(30px,7vw,42px);font-weight:800;line-height:1.05}
+h1 .q{color:var(--ink)}
+h2{font-size:19px;font-weight:600}
+.lead{color:var(--muted);margin:6px 0 0;max-width:52ch}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px;display:flex;flex-direction:column;gap:14px}
+.row-top{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field.grow{flex:1 1 220px}
+label{font-size:12.5px;color:var(--muted);font-weight:500}
+input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+input:focus-visible,button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+input.num{text-align:center}
+input.bad{border-color:var(--rojo);background:var(--rojo-soft)}
+.aprob{width:92px}
+.tag{font-size:11.5px;font-weight:600;color:var(--ink);background:var(--ink-soft);padding:2px 8px;border-radius:99px;align-self:flex-start}
+
+.grid-head,.eval{display:grid;grid-template-columns:minmax(0,1fr) 70px 70px 34px;gap:8px;align-items:center}
+.grid-head{font-size:12px;color:var(--muted);font-weight:500;padding:0 2px}
+.grid-head span:nth-child(2),.grid-head span:nth-child(3){text-align:center}
+.evals{display:flex;flex-direction:column;gap:8px}
+.eval input.nota.rojo{color:var(--rojo);font-weight:600}
+.eval input.nota.azul{color:var(--ink);font-weight:600}
+.x{border:0;background:none;color:var(--muted);font-size:20px;cursor:pointer;border-radius:8px;height:36px}
+.x:hover{background:var(--bg);color:var(--rojo)}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.link{border:0;background:none;color:var(--ink);font:inherit;font-weight:600;cursor:pointer;padding:6px 0}
+.sum{font-size:13px;padding:3px 10px;border-radius:99px;background:var(--ink-soft);color:var(--ink)}
+.sum.bad{background:var(--rojo-soft);color:var(--rojo)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.err{font-size:13.5px;color:var(--rojo);margin:0}
+.btn{font:inherit;font-weight:600;font-size:16px;border:0;border-radius:10px;padding:13px 18px;background:var(--ink);color:#fff;cursor:pointer;width:100%}
+.btn:hover{filter:brightness(1.07)}
+
+.result .big{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.result .grade{font-family:var(--f-num);font-weight:600;font-size:64px;line-height:1;letter-spacing:-.03em}
+.grade.azul{color:var(--ink)} .grade.rojo{color:var(--rojo)}
+.result p{margin:0}
+.verdict{font-family:var(--f-display);font-size:20px;font-weight:600}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.fact{background:var(--bg);border-radius:10px;padding:10px 12px}
+.fact b{display:block;font-family:var(--f-num);font-size:20px;font-variant-numeric:tabular-nums}
+.sim{border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:10px}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--ink);height:28px}
+.simout{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.pill{font-weight:600;font-size:13px;padding:4px 12px;border-radius:99px}
+.pill.azul{background:var(--ink-soft);color:var(--ink)} .pill.rojo{background:var(--rojo-soft);color:var(--rojo)}
+
+.rate{align-items:center;text-align:center;animation:up .35s ease-out both}
+@keyframes up{from{transform:translateY(16px);opacity:.3}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.rate{animation:none}}
+.stars{display:flex;gap:4px}
+.star{border:0;background:none;cursor:pointer;padding:4px;border-radius:10px;line-height:0}
+.star:disabled{cursor:default}
+.star svg{width:44px;height:44px;fill:var(--star-off);transition:fill .12s,transform .12s}
+.star.on svg{fill:var(--star)}
+.star:not(:disabled):hover svg{transform:scale(1.08)}
+.starlabel{min-height:22px;font-weight:600;color:var(--muted)}
+
+.owner{border-style:dashed}
+.dist{display:flex;flex-direction:column;gap:6px}
+.dist .r{display:grid;grid-template-columns:28px 1fr 34px;gap:8px;align-items:center;font-size:13px}
+.bar{height:10px;background:var(--bg);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--star);border-radius:99px}
+footer{font-size:12.5px;color:var(--muted);text-align:center;max-width:52ch;margin:0 auto}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Calculadora de notas · escala 10 a 70</span>
+    <h1>¿Paso el <span class="q">ramo</span>?</h1>
+    <p class="lead">Anota tus evaluaciones con su ponderación. Deja en blanco las que te faltan y te decimos qué nota necesitas en ellas para aprobar.</p>
+  </header>
+
+  <section class="card" aria-labelledby="t-ramo">
+    <span class="tag" id="ejemplo-tag">Ejemplo, reemplázalo por tu ramo</span>
+    <div class="row-top">
+      <div class="field grow"><label for="ramo">Ramo</label><input id="ramo" placeholder="Ej: Microeconomía" value="Microeconomía"></div>
+      <div class="field"><label for="aprob">Nota para aprobar</label><input id="aprob" class="num aprob" inputmode="numeric" value="40"></div>
+    </div>
+    <h2 id="t-ramo" style="font-size:15px">Evaluaciones</h2>
+    <div class="grid-head" aria-hidden="true"><span>Nombre</span><span>Pond. %</span><span>Nota</span><span></span></div>
+    <div class="evals" id="evals"></div>
+    <div class="foot">
+      <button class="link" id="add" type="button">+ Agregar evaluación</button>
+      <span class="sum num" id="sum">100%</span>
+    </div>
+    <p class="hint">Notas de 10 a 70, sin puntos ni comas. Deja la nota vacía si aún no rindes esa evaluación.</p>
+    <p class="err" id="err" hidden></p>
+    <button class="btn" id="calc" type="button">Calcular nota necesaria</button>
+  </section>
+
+  <section class="card result" id="result" hidden aria-live="polite"></section>
+
+  <section class="card rate" id="rate" hidden>
+    <span class="eyebrow">Tu opinión</span>
+    <h2>¿Qué tan útil te resultó?</h2>
+    <div class="stars" id="stars" role="radiogroup" aria-label="Calificación de 1 a 5 estrellas"></div>
+    <div class="starlabel" id="starlabel">Toca una estrella</div>
+  </section>
+
+  <section class="card owner" id="owner" hidden>
+    <span class="eyebrow">Solo tú ves este panel</span>
+    <h2>Validación con compañeros</h2>
+    <div class="facts" id="o-facts"></div>
+    <div class="dist" id="o-dist"></div>
+    <p class="hint" id="o-note"></p>
+  </section>
+
+  <footer>Prototipo en prueba. El promedio final se redondea al entero más cercano y no considera reglas especiales como examen reprobatorio. Registramos visitas y valoraciones de forma anónima, sin nombres ni correos.</footer>
+</div>
+
+<script>
+(function(){
+  const $=s=>document.querySelector(s);
+  const STAR_PATH='M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z';
+  const LABELS=['','Nada útil','Poco útil','Más o menos','Útil','Muy útil'];
+  let rows=[
+    {n:'Prueba 1',w:'25',g:'42'},
+    {n:'Prueba 2',w:'25',g:'36'},
+    {n:'Controles',w:'20',g:'51'},
+    {n:'Examen',w:'30',g:''}
+  ];
+  let ejemplo=true;
+
+  /* Acepta 45, y también 4,5 o 4.5 (escala antigua) que convierte a 45 */
+  const parse=v=>{v=String(v).trim().replace(',','.');if(v==='')return null;let x=Number(v);if(!isFinite(x))return NaN;
+    if(x>=1&&x<=7&&/[.]/.test(v))x=x*10;return x};
+  const ent=x=>String(Math.round(x));
+  const aprob=()=>{const a=parse($('#aprob').value);return (a===null||isNaN(a))?40:a};
+  const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+  function render(){
+    const box=$('#evals');box.innerHTML='';
+    rows.forEach((r,i)=>{
+      const d=document.createElement('div');d.className='eval';
+      d.innerHTML=`<input id="n${i}" aria-label="Nombre evaluación ${i+1}" placeholder="Evaluación ${i+1}">
+        <input id="w${i}" class="num" inputmode="numeric" aria-label="Ponderación ${i+1}" placeholder="%">
+        <input id="g${i}" class="num nota" inputmode="numeric" aria-label="Nota ${i+1}" placeholder="—">
+        <button class="x" type="button" aria-label="Quitar evaluación ${i+1}">×</button>`;
+      const [n,w,g,x]=d.children;
+      n.value=r.n;w.value=r.w;g.value=r.g;
+      n.oninput=()=>{r.n=n.value;touch()};
+      w.oninput=()=>{r.w=w.value;touch();check()};
+      g.oninput=()=>{r.g=g.value;touch();check()};
+      x.onclick=()=>{rows.splice(i,1);touch();render()};
+      box.appendChild(d);
+    });
+    check();
+  }
+  function touch(){ if(ejemplo){ejemplo=false;$('#ejemplo-tag').hidden=true} $('#result').hidden=true;$('#rate').hidden=true }
+
+  function check(){
+    let sum=0;
+    rows.forEach((r,i)=>{
+      const w=parse(r.w),g=parse(r.g);
+      const wi=$('#w'+i),gi=$('#g'+i);
+      const wBad=w===null||isNaN(w)||w<=0;
+      const gBad=g!==null&&(isNaN(g)||g<10||g>70);
+      wi.classList.toggle('bad',r.w!==''&&wBad);
+      gi.classList.toggle('bad',gBad);
+      gi.classList.toggle('rojo',!gBad&&g!==null&&g<aprob());
+      gi.classList.toggle('azul',!gBad&&g!==null&&g>=aprob());
+      if(!wBad)sum+=w;
+    });
+    const s=$('#sum');s.textContent=(Math.round(sum*100)/100)+'% de 100%';
+    s.classList.toggle('bad',Math.abs(sum-100)>0.01);
+  }
+
+  function compute(){
+    const a=aprob();
+    if(isNaN(a)||a<10||a>70)return {err:'La nota para aprobar debe estar entre 10 y 70.'};
+    if(!rows.length)return {err:'Agrega al menos una evaluación.'};
+    let sum=0,known=0,pend=0,pendNames=[];
+    for(const [i,r] of rows.entries()){
+      const w=parse(r.w),g=parse(r.g);
+      const name=r.n.trim()||('Evaluación '+(i+1));
+      if(w===null||isNaN(w)||w<=0)return {err:`Falta la ponderación de "${name}".`};
+      if(g!==null&&(isNaN(g)||g<10||g>70))return {err:`La nota de "${name}" debe estar entre 10 y 70.`};
+      sum+=w;
+      if(g===null){pend+=w;pendNames.push(name)}else known+=w*g/100;
+    }
+    if(Math.abs(sum-100)>0.01)return {err:`Las ponderaciones suman ${Math.round(sum*100)/100}%. Deben sumar 100%.`};
+    return {a,known,pend:pend/100,pendNames,evaluated:100-pend};
+  }
+  /* El promedio final se redondea al entero: 39,5 o más cuenta como 40 */
+  const finalRed=x=>Math.round(x+1e-9);
+
+  function showResult(c){
+    const el=$('#result');el.hidden=false;
+    const ramo=$('#ramo').value.trim()||'tu ramo';
+    if(c.pend===0){
+      const fin=finalRed(c.known), ok=fin>=c.a;
+      el.innerHTML=`<span class="eyebrow">${esc(ramo)} · ramo completo</span>
+        <div class="big"><span class="grade ${ok?'azul':'rojo'}">${fin}</span><span class="verdict">${ok?'Aprobado':'Reprobado'}</span></div>
+        <p class="hint">No tienes evaluaciones pendientes. Este es tu promedio final.</p>`;
+      return;
+    }
+    // menor nota entera x (10 a 70) tal que el promedio redondeado llegue a la nota de aprobación
+    let need=null;for(let x=10;x<=70;x++){if(finalRed(c.known+x*c.pend)>=c.a){need=x;break}}
+    const pendTxt=c.pendNames.length===1?`en ${esc(c.pendNames[0])}`:`en promedio en lo pendiente (${c.pendNames.map(esc).join(', ')})`;
+    let gradeTxt,cls,verdict,detail;
+    if(need===10){gradeTxt='10';cls='azul';verdict='Ya tienes el ramo asegurado';detail=`Aunque te saques la nota mínima ${pendTxt}, apruebas.`}
+    else if(need===null){gradeTxt='+70';cls='rojo';verdict='No alcanza con la nota máxima';detail=`Incluso con un 70 ${pendTxt} terminarías con ${finalRed(c.known+70*c.pend)}. Revisa si tu ramo tiene examen de repetición o recuperativa.`}
+    else{gradeTxt=String(need);cls=need>=c.a?'rojo':'azul';verdict='Es lo que necesitas';detail=`Necesitas un <b class="num">${need}</b> ${pendTxt} para terminar con ${ent(c.a)}.`}
+    const parcial=c.evaluated>0?c.known/(c.evaluated/100):null;
+    el.innerHTML=`<span class="eyebrow">${esc(ramo)} · nota necesaria</span>
+      <div class="big"><span class="grade ${cls}">${gradeTxt}</span><span class="verdict">${verdict}</span></div>
+      <p>${detail}</p>
+      <div class="facts">
+        <div class="fact"><span class="eyebrow">Evaluado</span><b>${Math.round(c.evaluated)}%</b></div>
+        <div class="fact"><span class="eyebrow">Promedio parcial</span><b>${parcial===null?'—':ent(parcial)}</b></div>
+        <div class="fact"><span class="eyebrow">Puntos acumulados</span><b>${ent(c.known)}</b></div>
+      </div>
+      <div class="sim">
+        <label for="simr">Simulador: ¿y si me saco esta nota en lo pendiente?</label>
+        <input type="range" id="simr" min="10" max="70" step="1" value="${need===null?70:Math.max(need,40)}">
+        <div class="simout"><span>Con un <b class="num" id="simg"></b> terminas con <b class="num" id="simf"></b></span><span class="pill" id="simp"></span></div>
+      </div>`;
+    const r=$('#simr');
+    const upd=()=>{const s=Number(r.value),fin=finalRed(c.known+s*c.pend),ok=fin>=c.a;
+      $('#simg').textContent=s;$('#simf').textContent=fin;
+      const p=$('#simp');p.textContent=ok?'Apruebas':'Repruebas';p.className='pill '+(ok?'azul':'rojo')};
+    r.oninput=upd;upd();
+  }
+
+  /* ---------- Estrellas después del resultado ---------- */
+  let stars=0,rated=false;
+  const sbox=$('#stars');
+  for(let i=1;i<=5;i++){
+    const b=document.createElement('button');b.className='star';b.type='button';
+    b.setAttribute('role','radio');b.setAttribute('aria-label',i+' estrella'+(i>1?'s':'')+': '+LABELS[i]);
+    b.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}"/></svg>`;
+    b.onclick=()=>{if(rated)return;stars=i;rated=true;paint();track('valoracion',{estrellas:i});
+      [...sbox.children].forEach(s=>s.disabled=true);$('#starlabel').textContent='¡Gracias! Nos ayuda a mejorar la calculadora.'};
+    b.onmouseenter=()=>{if(!rated)paint(i)};b.onmouseleave=()=>{if(!rated)paint()};
+    sbox.appendChild(b);
+  }
+  function paint(h){const v=h||stars;[...sbox.children].forEach((b,k)=>{b.classList.toggle('on',k<v);b.setAttribute('aria-checked',String(k+1===stars))});
+    if(!rated)$('#starlabel').textContent=v?LABELS[v]:'Toca una estrella'}
+  function showRate(){stars=0;rated=false;[...sbox.children].forEach(s=>s.disabled=false);paint();
+    const el=$('#rate');el.hidden=true;void el.offsetWidth;el.hidden=false}
+
+  $('#calc').onclick=()=>{
+    const c=compute();const e=$('#err');
+    if(c.err){e.textContent=c.err;e.hidden=false;return}
+    e.hidden=true;showResult(c);showRate();track('calculo',{ramo_completo:c.pend===0});
+    $('#result').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  };
+  $('#add').onclick=()=>{rows.push({n:'',w:'',g:''});touch();render();$('#n'+(rows.length-1)).focus()};
+  $('#aprob').oninput=()=>{touch();check()};
+  $('#ramo').oninput=touch;
+
+  /* ---------- Medición anónima por visitante ---------- */
+  const CFG=window.PASO_CONFIG||{};
+  let vid=null;
+  try{vid=localStorage.getItem('paso_vid');if(!vid){vid=(crypto.randomUUID?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g,()=>(Math.random()*16|0).toString(16)));localStorage.setItem('paso_vid',vid)}}
+  catch(e){vid='xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g,()=>(Math.random()*16|0).toString(16))}
+
+  // Opción A: sitio público en Vercel con Supabase
+  function trackSupabase(tipo,extra){
+    if(!CFG.supabaseUrl||!CFG.supabaseAnonKey)return;
+    fetch(CFG.supabaseUrl.replace(/\/$/,'')+'/rest/v1/eventos',{method:'POST',keepalive:true,
+      headers:Object.assign({'apikey':CFG.supabaseAnonKey,'Content-Type':'application/json','Prefer':'return=minimal'},
+        /^eyJ/.test(CFG.supabaseAnonKey)?{'Authorization':'Bearer '+CFG.supabaseAnonKey}:{}),
+      body:JSON.stringify(Object.assign({visitante:vid,tipo},extra||{}))}).catch(()=>{});
+  }
+
+  // Opción B: dentro de Claude (base de datos del artifact)
+  let db=null,uid=null,canWrite=true,queue=Promise.resolve(),early=[];
+  function trackClaude(tipo,extra){
+    if(!db||!uid||!canWrite)return;
+    queue=queue.then(async()=>{
+      const ref=db.collection('valoraciones').doc(uid);
+      try{
+        const snap=await ref.get();const cur=snap.exists?snap.data():{};
+        const next={visitas:cur.visitas||0,calculos:cur.calculos||0,votos:Array.isArray(cur.votos)?cur.votos.slice(-299):[],actualizado:Date.now()};
+        if(tipo==='visita')next.visitas++;
+        if(tipo==='calculo')next.calculos++;
+        if(tipo==='valoracion')next.votos.push({e:extra.estrellas,t:Date.now()});
+        await ref.set(next);
+      }catch(err){if(err&&err.code==='invalid_argument')canWrite=false}
+    });
+  }
+  function track(tipo,extra){
+    trackSupabase(tipo,extra);
+    if(db)trackClaude(tipo,extra);else if(early)early.push([tipo,extra]);
+  }
+
+  function ownerPanel(){
+    const el=$('#owner');el.hidden=false;$('#o-note').textContent='Cargando datos…';
+    let loaded=false;
+    const timer=setTimeout(()=>{if(!loaded)$('#o-note').textContent='Aún no se pueden leer los datos. Recarga en un rato.'},10000);
+    db.collection('valoraciones').onSnapshot(snap=>{
+      if(!snap.metadata.fromCache){loaded=true;clearTimeout(timer)}
+      let personas=0,visitas=0,calculos=0,suma=0,cnt=0;const dist=[0,0,0,0,0,0];
+      snap.docs.forEach(d=>{const v=d.data()||{};personas++;visitas+=v.visitas||0;calculos+=v.calculos||0;
+        (v.votos||[]).forEach(x=>{if(x.e>=1&&x.e<=5){dist[x.e]++;suma+=x.e;cnt++}})});
+      $('#o-facts').innerHTML=`
+        <div class="fact"><span class="eyebrow">Personas</span><b>${personas}</b></div>
+        <div class="fact"><span class="eyebrow">Visitas</span><b>${visitas}</b></div>
+        <div class="fact"><span class="eyebrow">Cálculos</span><b>${calculos}</b></div>
+        <div class="fact"><span class="eyebrow">Promedio ★</span><b>${cnt?(suma/cnt).toFixed(1):'—'}</b></div>`;
+      const max=Math.max(1,...dist.slice(1));
+      $('#o-dist').innerHTML=[5,4,3,2,1].map(k=>`<div class="r"><span class="num">${k}★</span><div class="bar"><i style="width:${dist[k]/max*100}%"></i></div><span class="num">${dist[k]}</span></div>`).join('');
+      $('#o-note').textContent=personas?`${cnt} valoraciones de ${calculos} cálculos. Se actualiza solo.`:'Todavía no hay datos. Comparte el enlace y aparecerán aquí.';
+    },()=>{loaded=true;clearTimeout(timer);$('#o-note').textContent='No se pudieron cargar los datos.'});
+  }
+
+  (async()=>{
+    try{
+      if(!window.claude||!window.claude.use){early=null;return}
+      const [d,u]=await Promise.all([window.claude.use('db'),window.claude.use('user')]);
+      if(u){uid=await u.id();if((await u.can('data.write'))===false)canWrite=false}
+      db=d;
+      const pend=early||[];early=null;pend.forEach(([t,x])=>trackClaude(t,x));
+      if(db&&u&&(await u.isOwner()))ownerPanel();
+    }catch(e){early=null}
+  })();
+
+  render();
+  track('visita');
+})();
+</script>
+</body></html>
